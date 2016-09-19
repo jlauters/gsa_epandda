@@ -1,0 +1,187 @@
+---
+layout: default
+title: gsa epandda 
+---
+
+<div class="home container">
+
+  <div id="welcome">
+
+    <div class="text-center">
+      <h3> Jon Lauters<br/>ePANDDA Developer </h3>
+    </div>
+
+    <div class="module">
+      <h3>What is ePANDDA?</h3>
+
+      <p>ePANDDA (<strong>e</strong>nhanced <strong>PA</strong>leontologoical and <strong>N</strong>eontological <strong>D</strong>ata 
+        <strong>D</strong>iscovery <strong>A</strong>PI ) is an EarthCube Integrative Activities project designed to increase accessibility,
+        linking, and discovery of paleontological and neontological data across existing siloed data stores. Initial collaborators include
+        PaleoBiology Database (PBDB), iDigBio, and iDigPaleo. The ultimate goal of the project is to create an independent, transactional API
+        that communicates with the APIs of participating databases to distribute and process queries between them for the purpose of returning
+        formatted datasets.</p>
+
+      <div class="row data-providers">
+ 
+        <div class="col-sm-3 text-center provider">
+          <a href="https://paleobiodb.org">
+            <img src="https://paleobiodb.org/build/img/logo_grey.png" style="height: 120px; width: 120px;">
+            <h5 style="font-weight: lighter; color: rgb(71,76,80)">Paleo Biology DB</h5>
+          </a>
+        </div>
+
+        <div class="col-sm-4 text-center provider">
+          <a href="https://www.idigbio.org">
+            <img src="https://www.idigbio.org/sites/default/files/idigbio_logo_0.png">
+          </a>
+        </div>
+
+        <div class="col-sm-4 text-center provider">
+          <a href="https://www.idigpaleo.org">
+            <img src="{{site.baseurl}}media/idigpaleo.png" style="height: 100px; width: 85%">
+          </a>
+        </div>
+
+      </div>
+
+    </div>
+
+    <div class="module">
+      <h3>Why an API instead of an App?</h3>
+     
+      <p>Given that the intial data providers that we collaborated with all have individual search portals, we didn't want to create just another
+         search portal and database to maintain. Instead we chose to build a flexible data scaffolding that could be used for multiple purposes as
+         well as leverage search portal functionality if so desired. By using a RESTful API, app developers could design educational outreach tools,
+         specialized data visualizations, as well as target research applications using a common data framework.</p>
+
+      <h3>What's RESTful?</h3>
+   
+      <p>RESTful API's use the vocabulary of the web HTTP to communicate the transfer of data and resources from one machine to another in a 
+         consistent and standardized way</p>
+
+      <div class="embed-container text-center">
+        <iframe width="560" height="315" src="https://www.youtube.com/embed/7YcW25PHnAA" frameborder="0" allowfullscreen></iframe>
+      </div>
+ 
+    </div>
+
+    <div class="module">
+      <h3>What's in our tech stack?</h3>
+
+      <p>Our current tech stack consists of a lightweight API written in Python using the Flask microframework, some Python modules
+         to handle fuzzy field matching and a MongoDB instance with some collections to facilitate quick indexing of PBDB joined records.</p>
+
+      <p>We had briefly looked into node.js for the API layer, but Python had better modules for fuzzy string matching and large batch
+         text processing. Out of simplicity we chose to keep the API and processing layers in the same language.</p>
+
+      <p>There has been some converation with the GOUDA group and iDigBio developers about using Apache Spark and Scala to
+         write some cluster based code to manage big data matching. We have postponed these efforts for now due to complexity
+         vs performance. If our Python based matching approach proves to be too slow, this could be revisisted in the future.</p>
+
+      <p>We've also been collaborating with iDigBio developers to integrate the openAnnotation standard for use of tracking 
+         iDigBio specimens matched to PBDB publications. This may also be used in the near future to associate fieldbook notes
+         with specimens, or serve as a communication tool to help push data corrections back to the specimen owner</p>
+    </div>
+
+    <div class="module">
+      <h3>How a match is determind</h3>
+
+      <p>We performed several field mapping efforts to look at the DarwinCore fields in iDigBio/iDigPaleo and fields available in 
+         PBDB's data model. Once we established some field name mappings, a basic matching algoritm was written that steps through each record
+         from PBDB for a given search criteria and the appropriate fields are compared to corresponding fields in an iDigBio Record. A certain level
+         of fuzziness is given to these matchings by using Regular Expressions and Levenshtein Distance for string matching to accomodate typos,
+         near spellings or slightly different wordings (ex: "Journal of Paleontology of London" == "Journals of Paleontology, London"). If the two
+         field values are close enough, they are scored and at the end of the match cycle the record to record match is scored against a threshold, if this
+         passes, then the match is run through the openAnnotation generator and sent to the API handler for delivery back to the user</p>
+
+      <br/>
+      <h4>Simplified example of matching algorithm:</h4>
+      <pre><code class="language-python">
+        def matchPubFields(pbdb, idigbio):
+
+          matches = []
+          for pb in pbdb:
+            for specimen in idigbio:
+            
+              score = 0
+              matched_on = []
+ 
+              if "dwc:scientificNameAuthorship" in specimen['data']:
+                if specimen['data']['dwc:scientificNameAuthorship'].lower().find( pb['ref']['author1'].lower() ) >= 0:
+
+                   score = score + 1
+                   matched_on.append("PBDB:author == dwc:scientificNameAuthorship") 
+
+              # ... similar checks to match on many other fields
+
+              if score > threshold:
+          
+                # Create openAnnotation
+                oa = annotation.create(specimen, pb)
+                matches.append({
+                  "pbdb_id": pb['ref']['pid'],
+                  "idigbio_id": specimen['uuid'],
+                  "score": score,
+                  "annotation": oa,
+                  "matched_on": '[%s]' % ', '.join(map(str, matched_on))   
+                }) 
+
+          # sort matches by descending score
+          sorted_matches = sorted(matches, key=lambda match: match['score'], reverse=True)
+
+          return sorted_matches
+      </code></pre>      
+
+      <br/>
+      <h4>openAnnotation example:</h4>
+      <pre><code class="language-json">
+        {
+          "@context": "http://www.w3.org/ns/oa-context-20130208.json",
+          "@id": "TBD - ePANDDA generated UUID for the annotation",
+          "@type": "oa:Annotation",
+          "annotatedAt": "2016-03-14 10:15:00 CST",
+          "annotatedBy": {
+            "@id": "http://grab.by/PuPq",
+            "@type": "foaf:Project",
+            "mbox": { "@id": "mailto:annotation@epandda.org" },
+            "name": "ePANDDA Annotation Bot"
+          },
+          "hasBody": {
+            "@id": "TBD - PBDB reference_no or ePANDDA generated UUID",
+            "@type": ["dwc:Occurrence"],
+            "json": { "dwc:reference": "https://paleobiodb.org/data1.1/refs/single.json?id=53771&show=both" }
+          },
+          "hasTarget": {
+            "@id": "urn:uuid:5993b351-8e1a-42be-9b68-5e1b5a3ef4ae",
+            "@type": "oa:SpecificResource",
+            "hasSource": {
+              "@id": "http://search.idigbio.org/v2/view/records/5993b351-8e1a-42be-9b68-5e1b5a3ef4ae",
+              "@type": "dctypes:Text"
+            }
+          }
+        }
+      </code></pre>
+
+
+      <p>There are special cases of matching data such as date and time, stratographic and taxonomic names, and GPS coordinates that employ different 
+         strategies for determining a match. In the case of taxonomic names, we've used the Global Names Parser to attempt to translate between
+         different taxonomic opinions</p>
+
+    </div>
+
+    <div class="module">
+      <h3>Problem areas / Questions or Suggestions?</h3>
+
+      <p>Originally, we had hoped to have our API query out to PBDB and iDigBio in realtime to pull data. Early dev tests proved
+         this to be hard to group large amounts of data, process for matches and return to the user in response times that were exceeding 1 minute.
+         We've been working with a cut of data from PBDB and creating quick index collections in MongoDB to preprocess some data associations as well
+         as keeping track of matches we've already made in an effort to learn from previous queries.</p>
+
+      <p>We would love to hear from anyone who feels they might use the API to offer feedback on what sort of return objects would be
+         most useful to the widest set of applications. Trying to balance thoroughness and completeness with compact efficient return objects on
+         potentially large datasets has been challenging so far.</p>
+    </div>
+
+  </div>  
+
+</div>
