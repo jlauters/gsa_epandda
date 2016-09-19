@@ -17,7 +17,7 @@ title: GSA ePANDDA
 email: jonathan.lauters@gmail.com 
 description: #coment
 baseurl: "/" # the subpath of your site, e.g. /blog
-url: "http://localhost:4000" # the base hostname & protocol for your site
+url: "http://jonlauters.com" # the base hostname & protocol for your site
 twitter_username: ""
 github_username:  ""
 
